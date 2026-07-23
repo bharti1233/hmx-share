@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import logoAsset from "@/assets/hmx-share-logo.png.asset.json";
 
 export function Nav() {
   return (
@@ -7,7 +6,7 @@ export function Nav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2 group">
           <img
-            src={logoAsset.url}
+            src="/hmx-logo.png"
             alt="HMX Share"
             className="h-9 w-auto rounded-xl object-contain transition-transform group-hover:scale-105"
           />
