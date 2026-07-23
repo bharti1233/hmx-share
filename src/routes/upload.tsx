@@ -10,7 +10,10 @@ import {
   Share2,
   Clock,
   ArrowLeft,
+  FolderIcon,
+  Package,
 } from "lucide-react";
+import JSZip from "jszip";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Nav } from "@/components/Nav";
@@ -21,15 +24,15 @@ export const Route = createFileRoute("/upload")({
   head: () => ({
     meta: [
       { title: "Upload — HMX Share" },
-      { name: "description", content: "Upload a file and get a transfer code to share." },
+      { name: "description", content: "Upload files or folders and get a transfer code to share." },
       { property: "og:title", content: "Upload — HMX Share" },
-      { property: "og:description", content: "Upload a file and get a transfer code." },
+      { property: "og:description", content: "Upload files or entire folders and get a transfer code." },
     ],
   }),
   component: UploadPage,
 });
 
-type Phase = "idle" | "picked" | "uploading" | "done" | "error";
+type Phase = "idle" | "picked" | "packing" | "uploading" | "done" | "error";
 
 interface Result {
   code: string;
@@ -38,39 +41,114 @@ interface Result {
   expiresAt: string;
 }
 
+interface PickedItem {
+  file: File;
+  relPath: string; // path inside a dropped folder, or just the file name
+}
+
 const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
 
+// Walk a DataTransferItem tree (files + folders) into a flat list with relative paths.
+async function readEntries(entry: any, path = ""): Promise<PickedItem[]> {
+  if (!entry) return [];
+  if (entry.isFile) {
+    const file: File = await new Promise((res, rej) => entry.file(res, rej));
+    return [{ file, relPath: path + file.name }];
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const items: PickedItem[] = [];
+    // readEntries returns in batches — keep reading until empty
+    while (true) {
+      const batch: any[] = await new Promise((res, rej) => reader.readEntries(res, rej));
+      if (!batch.length) break;
+      for (const child of batch) {
+        items.push(...(await readEntries(child, path + entry.name + "/")));
+      }
+    }
+    return items;
+  }
+  return [];
+}
+
+async function collectFromDataTransfer(dt: DataTransfer): Promise<PickedItem[]> {
+  const items = dt.items;
+  const out: PickedItem[] = [];
+  if (items && items.length) {
+    const entries: any[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const entry = (it as any).webkitGetAsEntry?.();
+      if (entry) entries.push(entry);
+      else {
+        const f = it.getAsFile?.();
+        if (f) out.push({ file: f, relPath: f.name });
+      }
+    }
+    for (const e of entries) out.push(...(await readEntries(e)));
+  } else {
+    for (const f of Array.from(dt.files)) out.push({ file: f, relPath: f.name });
+  }
+  return out;
+}
+
 function UploadPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [expiry, setExpiry] = useState<number>(EXPIRY_OPTIONS[2].value); // 1h default
+  const [items, setItems] = useState<PickedItem[]>([]);
+  const [expiry, setExpiry] = useState<number>(EXPIRY_OPTIONS[2].value);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [remaining, setRemaining] = useState(0);
+  const [packProgress, setPackProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [dragging, setDragging] = useState(false);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (f: File | null) => {
-    if (!f) return;
-    if (f.size > MAX_SIZE) {
-      toast.error(`File exceeds ${formatBytes(MAX_SIZE)} limit`);
+  const totalSize = items.reduce((s, it) => s + it.file.size, 0);
+  const isBundle = items.length > 1;
+  const bundleName =
+    items.length === 0
+      ? ""
+      : items.length === 1
+      ? items[0].file.name
+      : `hmx-bundle-${items.length}-files.zip`;
+
+  const setPicked = (list: PickedItem[]) => {
+    if (!list.length) return;
+    const total = list.reduce((s, it) => s + it.file.size, 0);
+    if (total > MAX_SIZE) {
+      toast.error(`Selection exceeds ${formatBytes(MAX_SIZE)} limit`);
       return;
     }
-    setFile(f);
+    setItems(list);
     setPhase("picked");
     setError(null);
     setProgress(0);
   };
 
-  const onDrop = useCallback((e: React.DragEvent) => {
+  const onDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) handleFile(f);
+    try {
+      const picked = await collectFromDataTransfer(e.dataTransfer);
+      setPicked(picked);
+    } catch {
+      toast.error("Could not read dropped items");
+    }
   }, []);
+
+  const onFilesPicked = (files: FileList | null) => {
+    if (!files) return;
+    const list: PickedItem[] = Array.from(files).map((f) => ({
+      file: f,
+      // <input webkitdirectory> exposes relative path
+      relPath: (f as any).webkitRelativePath || f.name,
+    }));
+    setPicked(list);
+  };
 
   const cancelUpload = () => {
     xhrRef.current?.abort();
@@ -80,26 +158,41 @@ function UploadPage() {
   };
 
   const reset = () => {
-    setFile(null);
+    setItems([]);
     setResult(null);
     setPhase("idle");
     setProgress(0);
+    setPackProgress(0);
     setError(null);
   };
 
+  const buildUploadBlob = async (): Promise<{ blob: Blob; name: string; type: string }> => {
+    if (items.length === 1) {
+      const f = items[0].file;
+      return { blob: f, name: f.name, type: f.type || "application/octet-stream" };
+    }
+    setPhase("packing");
+    const zip = new JSZip();
+    for (const it of items) zip.file(it.relPath, it.file);
+    const blob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (m) => {
+      setPackProgress(m.percent);
+    });
+    return { blob, name: bundleName, type: "application/zip" };
+  };
+
   const startUpload = async () => {
-    if (!file) return;
-    setPhase("uploading");
+    if (!items.length) return;
     setError(null);
 
     try {
-      // 1. Get a unique transfer code from the DB
+      const { blob, name, type } = await buildUploadBlob();
+      setPhase("uploading");
+
       const { data: codeData, error: codeErr } = await supabase.rpc("generate_transfer_code");
       if (codeErr || !codeData) throw new Error(codeErr?.message ?? "Could not generate code");
       const code = codeData as string;
-      const storagePath = `${code}/${file.name}`;
+      const storagePath = `${code}/${name}`;
 
-      // 2. Upload directly to Storage using signed upload URL, tracking progress via XHR
       const { data: signed, error: signedErr } = await supabase.storage
         .from("transfers")
         .createSignedUploadUrl(storagePath);
@@ -110,7 +203,7 @@ function UploadPage() {
         const xhr = new XMLHttpRequest();
         xhrRef.current = xhr;
         xhr.open("PUT", signed.signedUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("Content-Type", type);
         xhr.setRequestHeader("x-upsert", "false");
         xhr.upload.onprogress = (ev) => {
           if (!ev.lengthComputable) return;
@@ -127,22 +220,21 @@ function UploadPage() {
         };
         xhr.onerror = () => reject(new Error("Network error"));
         xhr.onabort = () => reject(new Error("Upload cancelled"));
-        xhr.send(file);
+        xhr.send(blob);
       });
 
-      // 3. Insert row into transfers
       const expiresAt = new Date(Date.now() + expiry).toISOString();
       const { error: insertErr } = await supabase.from("transfers").insert({
         transfer_code: code,
-        file_name: file.name,
-        file_size: file.size,
-        file_type: file.type || "application/octet-stream",
+        file_name: name,
+        file_size: blob.size,
+        file_type: type,
         storage_path: storagePath,
         expires_at: expiresAt,
       });
       if (insertErr) throw new Error(insertErr.message);
 
-      setResult({ code, fileName: file.name, fileSize: file.size, expiresAt });
+      setResult({ code, fileName: name, fileSize: blob.size, expiresAt });
       setPhase("done");
       toast.success("Upload complete!");
     } catch (e) {
@@ -153,6 +245,12 @@ function UploadPage() {
         toast.error(msg);
       }
     }
+  };
+
+  const removeItem = (idx: number) => {
+    const next = items.filter((_, i) => i !== idx);
+    if (!next.length) reset();
+    else setItems(next);
   };
 
   return (
@@ -170,10 +268,10 @@ function UploadPage() {
               exit={{ opacity: 0, y: -10 }}
             >
               <h1 className="text-3xl font-bold sm:text-4xl">
-                Upload a <span className="gradient-text">file</span>
+                Upload <span className="gradient-text">anything</span>
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Any file type, up to {formatBytes(MAX_SIZE)}.
+                Drop files or entire folders — any type, up to {formatBytes(MAX_SIZE)}.
               </p>
 
               <div
@@ -183,55 +281,122 @@ function UploadPage() {
                 }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
-                onClick={() => !file && inputRef.current?.click()}
-                className={`mt-8 cursor-pointer rounded-3xl glass p-8 text-center transition-all sm:p-12 ${
-                  dragging ? "border-primary/60 bg-primary/5" : ""
-                } ${file ? "cursor-default" : "hover:border-primary/40"}`}
+                onClick={() => !items.length && inputRef.current?.click()}
+                className={`mt-8 rounded-3xl glass p-8 text-center transition-all sm:p-12 ${
+                  dragging ? "border-primary/60 bg-primary/5 scale-[1.01]" : ""
+                } ${items.length ? "cursor-default" : "cursor-pointer hover:border-primary/40"}`}
               >
                 <input
                   ref={inputRef}
                   type="file"
+                  multiple
                   className="hidden"
-                  onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => onFilesPicked(e.target.files)}
                 />
-                {!file ? (
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  className="hidden"
+                  // @ts-expect-error non-standard attributes for folder picking
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  onChange={(e) => onFilesPicked(e.target.files)}
+                />
+                {!items.length ? (
                   <>
                     <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl gradient-bg shadow-[var(--shadow-glow)]">
                       <UploadIcon className="h-7 w-7 text-primary-foreground" />
                     </div>
-                    <h3 className="mt-5 text-lg font-semibold">Drop file here</h3>
+                    <h3 className="mt-5 text-lg font-semibold">Drop files or folders here</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      or click to browse
+                      Any file type, single or multiple, nested folders — all supported
                     </p>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-muted">
-                      <FileIcon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatBytes(file.size)}
-                      </p>
-                    </div>
-                    {phase !== "uploading" && (
+                    <div className="mt-5 flex flex-wrap justify-center gap-2">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          reset();
+                          inputRef.current?.click();
                         }}
-                        className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label="Remove file"
+                        className="inline-flex items-center gap-2 rounded-xl bg-muted px-4 py-2 text-sm font-medium hover:bg-muted/70"
                       >
-                        <X className="h-4 w-4" />
+                        <FileIcon className="h-4 w-4" /> Choose files
                       </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          folderInputRef.current?.click();
+                        }}
+                        className="inline-flex items-center gap-2 rounded-xl bg-muted px-4 py-2 text-sm font-medium hover:bg-muted/70"
+                      >
+                        <FolderIcon className="h-4 w-4" /> Choose folder
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-left">
+                    <div className="flex items-center gap-4">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-muted">
+                        {isBundle ? (
+                          <Package className="h-5 w-5 text-primary" />
+                        ) : (
+                          <FileIcon className="h-5 w-5 text-primary" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          {isBundle ? `${items.length} items` : items[0].file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatBytes(totalSize)}
+                          {isBundle ? " · will be zipped" : ""}
+                        </p>
+                      </div>
+                      {phase !== "uploading" && phase !== "packing" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reset();
+                          }}
+                          className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="Clear selection"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {isBundle && phase !== "uploading" && phase !== "packing" && (
+                      <ul className="mt-4 max-h-40 overflow-auto rounded-xl border border-border/60 bg-background/40 text-xs">
+                        {items.map((it, i) => (
+                          <li
+                            key={i}
+                            className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/40 last:border-b-0"
+                          >
+                            <span className="truncate text-muted-foreground">{it.relPath}</span>
+                            <span className="shrink-0 text-muted-foreground/70">
+                              {formatBytes(it.file.size)}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeItem(i);
+                              }}
+                              className="shrink-0 rounded p-1 hover:bg-muted"
+                              aria-label="Remove"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 )}
               </div>
 
-              {file && phase !== "uploading" && (
+              {items.length > 0 && phase !== "uploading" && phase !== "packing" && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -254,6 +419,28 @@ function UploadPage() {
                         {opt.label}
                       </button>
                     ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {phase === "packing" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 rounded-2xl glass p-5"
+                >
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="font-medium">Packaging files…</span>
+                    <span className="font-mono tabular-nums text-primary">
+                      {packProgress.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                    <motion.div
+                      className="h-full gradient-bg"
+                      animate={{ width: `${packProgress}%` }}
+                      transition={{ ease: "linear", duration: 0.15 }}
+                    />
                   </div>
                 </motion.div>
               )}
@@ -296,12 +483,16 @@ function UploadPage() {
                 </div>
               )}
 
-              {file && phase !== "uploading" && (
+              {items.length > 0 && phase !== "uploading" && phase !== "packing" && (
                 <button
                   onClick={startUpload}
                   className="mt-6 w-full rounded-2xl gradient-bg py-4 text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  {phase === "error" ? "Try again" : "Upload & generate code"}
+                  {phase === "error"
+                    ? "Try again"
+                    : isBundle
+                    ? `Zip & upload ${items.length} items`
+                    : "Upload & generate code"}
                 </button>
               )}
             </motion.div>
