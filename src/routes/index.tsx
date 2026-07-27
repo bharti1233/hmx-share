@@ -65,7 +65,7 @@ function Home() {
             title="Download Files"
             description="Enter a transfer code to retrieve."
             accent="from-[oklch(0.78_0.16_200)] to-[oklch(0.72_0.15_170)]"
-            delay={0.2}
+            delay={0.05}
           />
         </div>
 
