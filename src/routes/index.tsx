@@ -57,7 +57,7 @@ function Home() {
             title="Upload Files"
             description="Drag & drop, pick expiry, get a code."
             accent="from-[oklch(0.72_0.19_285)] to-[oklch(0.6_0.22_310)]"
-            delay={0.1}
+            delay={0}
           />
           <ActionCard
             to="/download"
