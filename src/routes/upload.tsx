@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload as UploadIcon,
   FileIcon,
@@ -13,8 +13,10 @@ import {
   FolderIcon,
   Package,
 } from "lucide-react";
-import JSZip from "jszip";
-import { QRCodeSVG } from "qrcode.react";
+// jszip and qrcode.react are loaded lazily to keep the initial bundle lean.
+const LazyQRCode = lazy(() =>
+  import("qrcode.react").then((m) => ({ default: m.QRCodeSVG })),
+);
 import { toast } from "sonner";
 import { Nav } from "@/components/Nav";
 import { supabase } from "@/integrations/supabase/client";
@@ -172,6 +174,7 @@ function UploadPage() {
       return { blob: f, name: f.name, type: f.type || "application/octet-stream" };
     }
     setPhase("packing");
+    const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
     for (const it of items) zip.file(it.relPath, it.file);
     const blob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (m) => {
@@ -581,8 +584,10 @@ function ResultView({ result, onReset }: { result: Result; onReset: () => void }
           </button>
         </div>
 
-        <div className="mx-auto mt-8 w-fit rounded-2xl bg-white p-3">
-          <QRCodeSVG value={shareUrl} size={144} level="M" />
+        <div className="mx-auto mt-8 w-fit rounded-2xl bg-white p-3" style={{ minHeight: 168, minWidth: 168 }}>
+          <Suspense fallback={<div className="h-[144px] w-[144px] animate-pulse rounded bg-muted" />}>
+            <LazyQRCode value={shareUrl} size={144} level="M" />
+          </Suspense>
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-sm">
