@@ -174,6 +174,7 @@ function UploadPage() {
       return { blob: f, name: f.name, type: f.type || "application/octet-stream" };
     }
     setPhase("packing");
+    const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
     for (const it of items) zip.file(it.relPath, it.file);
     const blob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (m) => {
