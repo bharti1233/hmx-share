@@ -106,7 +106,7 @@ function ActionCard({
     >
       <Link
         to={to}
-        className="group relative block overflow-hidden rounded-3xl glass p-8 shadow-[var(--shadow-card)] transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
+        className="group relative block overflow-hidden rounded-3xl glass p-8 shadow-[var(--shadow-card)] transition-all [touch-action:manipulation] active:scale-[0.98] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
       >
         <div
           className={`absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br ${accent} opacity-20 blur-3xl transition-opacity group-hover:opacity-40`}
