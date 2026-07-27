@@ -584,8 +584,10 @@ function ResultView({ result, onReset }: { result: Result; onReset: () => void }
           </button>
         </div>
 
-        <div className="mx-auto mt-8 w-fit rounded-2xl bg-white p-3">
-          <QRCodeSVG value={shareUrl} size={144} level="M" />
+        <div className="mx-auto mt-8 w-fit rounded-2xl bg-white p-3" style={{ minHeight: 168, minWidth: 168 }}>
+          <Suspense fallback={<div className="h-[144px] w-[144px] animate-pulse rounded bg-muted" />}>
+            <LazyQRCode value={shareUrl} size={144} level="M" />
+          </Suspense>
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-sm">
