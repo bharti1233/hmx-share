@@ -33,7 +33,7 @@ function Home() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.3 }}
           className="text-center"
         >
           <span className="inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs font-medium text-muted-foreground">
@@ -57,7 +57,7 @@ function Home() {
             title="Upload Files"
             description="Drag & drop, pick expiry, get a code."
             accent="from-[oklch(0.72_0.19_285)] to-[oklch(0.6_0.22_310)]"
-            delay={0.1}
+            delay={0}
           />
           <ActionCard
             to="/download"
@@ -65,7 +65,7 @@ function Home() {
             title="Download Files"
             description="Enter a transfer code to retrieve."
             accent="from-[oklch(0.78_0.16_200)] to-[oklch(0.72_0.15_170)]"
-            delay={0.2}
+            delay={0.05}
           />
         </div>
 
@@ -102,11 +102,11 @@ function ActionCard({
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay }}
+      transition={{ duration: 0.25, delay }}
     >
       <Link
         to={to}
-        className="group relative block overflow-hidden rounded-3xl glass p-8 shadow-[var(--shadow-card)] transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
+        className="group relative block overflow-hidden rounded-3xl glass p-8 shadow-[var(--shadow-card)] transition-all [touch-action:manipulation] active:scale-[0.98] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
       >
         <div
           className={`absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br ${accent} opacity-20 blur-3xl transition-opacity group-hover:opacity-40`}
