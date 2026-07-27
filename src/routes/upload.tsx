@@ -13,8 +13,7 @@ import {
   FolderIcon,
   Package,
 } from "lucide-react";
-import { lazy, Suspense } from "react";
-// jszip and qrcode.react are loaded lazily below to keep the initial bundle lean.
+// jszip and qrcode.react are loaded lazily to keep the initial bundle lean.
 const LazyQRCode = lazy(() =>
   import("qrcode.react").then((m) => ({ default: m.QRCodeSVG })),
 );
