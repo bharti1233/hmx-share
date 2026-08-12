@@ -46,6 +46,7 @@ function normalizeCode(raw: string): string {
 
 function DownloadPage() {
   const { code: initialCode } = Route.useSearch();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [code, setCode] = useState(initialCode ?? "");
   const [loading, setLoading] = useState(false);
