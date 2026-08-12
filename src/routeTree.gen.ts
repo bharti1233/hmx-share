@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicHooksExpireTransfersRouteImport } from './routes/api/public/hooks/expire-transfers'
@@ -29,6 +30,11 @@ const SignupRoute = SignupRouteImport.update({
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DownloadRoute = DownloadRouteImport.update({
@@ -51,6 +57,7 @@ const ApiPublicHooksExpireTransfersRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/download'
+    | '/forgot-password'
     | '/signin'
     | '/signup'
     | '/upload'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/download'
+    | '/forgot-password'
     | '/signin'
     | '/signup'
     | '/upload'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/download'
+    | '/forgot-password'
     | '/signin'
     | '/signup'
     | '/upload'
@@ -103,6 +115,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DownloadRoute: typeof DownloadRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
   UploadRoute: typeof UploadRoute
@@ -132,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SigninRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/download': {
       id: '/download'
       path: '/download'
@@ -159,6 +179,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DownloadRoute: DownloadRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
   UploadRoute: UploadRoute,
