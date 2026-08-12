@@ -234,7 +234,10 @@ function UploadPage() {
         file_type: type,
         storage_path: storagePath,
         expires_at: expiresAt,
+        user_id: user?.id ?? null,
+        file_count: items.length || 1,
       });
+
       if (insertErr) throw new Error(insertErr.message);
 
       setResult({ code, fileName: name, fileSize: blob.size, expiresAt });
