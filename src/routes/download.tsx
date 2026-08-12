@@ -103,6 +103,22 @@ function DownloadPage() {
         .eq("id", transfer.id)
         .then(() => {});
 
+      if (user) {
+        supabase
+          .from("download_history")
+          .insert({
+            user_id: user.id,
+            transfer_id: transfer.id,
+            transfer_code: transfer.transfer_code,
+            file_name: transfer.file_name,
+            file_size: transfer.file_size,
+            file_count: transfer.file_count ?? 1,
+          })
+          .then(() => {});
+      }
+
+
+
       window.location.href = data.signedUrl;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Download failed");
