@@ -17,6 +17,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTransfersRouteImport } from './routes/_authenticated/transfers'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiPublicHooksExpireTransfersRouteImport } from './routes/api/public/hooks/expire-transfers'
 
@@ -59,6 +60,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTransfersRoute = AuthenticatedTransfersRouteImport.update({
+  id: '/transfers',
+  path: '/transfers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/transfers': typeof AuthenticatedTransfersRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
 export interface FileRoutesByTo {
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/transfers': typeof AuthenticatedTransfersRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
 export interface FileRoutesById {
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/transfers': typeof AuthenticatedTransfersRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
 export interface FileRouteTypes {
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/upload'
     | '/dashboard'
+    | '/transfers'
     | '/api/public/hooks/expire-transfers'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/upload'
     | '/dashboard'
+    | '/transfers'
     | '/api/public/hooks/expire-transfers'
   id:
     | '__root__'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/upload'
     | '/_authenticated/dashboard'
+    | '/_authenticated/transfers'
     | '/api/public/hooks/expire-transfers'
   fileRoutesById: FileRoutesById
 }
@@ -213,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/transfers': {
+      id: '/_authenticated/transfers'
+      path: '/transfers'
+      fullPath: '/transfers'
+      preLoaderRoute: typeof AuthenticatedTransfersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -232,10 +251,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedTransfersRoute: typeof AuthenticatedTransfersRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedTransfersRoute: AuthenticatedTransfersRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
