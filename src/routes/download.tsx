@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download as DownloadIcon, FileIcon, Clock, Search, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Nav } from "@/components/Nav";
+import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatBytes, formatRemaining } from "@/lib/format";
 
@@ -17,7 +18,9 @@ interface Transfer {
   created_at: string;
   expires_at: string;
   download_count: number;
+  file_count?: number;
 }
+
 
 export const Route = createFileRoute("/download")({
   head: () => ({
