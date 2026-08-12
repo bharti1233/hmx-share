@@ -95,6 +95,7 @@ async function collectFromDataTransfer(dt: DataTransfer): Promise<PickedItem[]> 
 }
 
 function UploadPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<PickedItem[]>([]);
   const [expiry, setExpiry] = useState<number>(EXPIRY_OPTIONS[2].value);
   const [phase, setPhase] = useState<Phase>("idle");
