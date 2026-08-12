@@ -111,7 +111,7 @@ function DownloadPage() {
           .from("download_history")
           .insert({
             user_id: user.id,
-            transfer_id: transfer.id,
+            
             transfer_code: transfer.transfer_code,
             file_name: transfer.file_name,
             file_size: transfer.file_size,
