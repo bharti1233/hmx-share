@@ -18,6 +18,7 @@ import { Route as DownloadRouteImport } from './routes/download'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTransfersRouteImport } from './routes/_authenticated/transfers'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedDownloadsRouteImport } from './routes/_authenticated/downloads'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiPublicHooksExpireTransfersRouteImport } from './routes/api/public/hooks/expire-transfers'
@@ -66,6 +67,11 @@ const AuthenticatedTransfersRoute = AuthenticatedTransfersRouteImport.update({
   path: '/transfers',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDownloadsRoute = AuthenticatedDownloadsRouteImport.update({
   id: '/downloads',
   path: '/downloads',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/upload': typeof UploadRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/downloads': typeof AuthenticatedDownloadsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/transfers': typeof AuthenticatedTransfersRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/upload': typeof UploadRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/downloads': typeof AuthenticatedDownloadsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/transfers': typeof AuthenticatedTransfersRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/upload': typeof UploadRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/downloads': typeof AuthenticatedDownloadsRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/transfers': typeof AuthenticatedTransfersRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/upload'
     | '/dashboard'
     | '/downloads'
+    | '/settings'
     | '/transfers'
     | '/api/public/hooks/expire-transfers'
   fileRoutesByTo: FileRoutesByTo
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/upload'
     | '/dashboard'
     | '/downloads'
+    | '/settings'
     | '/transfers'
     | '/api/public/hooks/expire-transfers'
   id:
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/upload'
     | '/_authenticated/dashboard'
     | '/_authenticated/downloads'
+    | '/_authenticated/settings'
     | '/_authenticated/transfers'
     | '/api/public/hooks/expire-transfers'
   fileRoutesById: FileRoutesById
@@ -244,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTransfersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/downloads': {
       id: '/_authenticated/downloads'
       path: '/downloads'
@@ -271,12 +290,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDownloadsRoute: typeof AuthenticatedDownloadsRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTransfersRoute: typeof AuthenticatedTransfersRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDownloadsRoute: AuthenticatedDownloadsRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTransfersRoute: AuthenticatedTransfersRoute,
 }
 
