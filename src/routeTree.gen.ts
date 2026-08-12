@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as SigninRouteImport } from './routes/signin'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicHooksExpireTransfersRouteImport } from './routes/api/public/hooks/expire-transfers'
@@ -17,6 +18,11 @@ import { Route as ApiPublicHooksExpireTransfersRouteImport } from './routes/api/
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DownloadRoute = DownloadRouteImport.update({
@@ -39,12 +45,14 @@ const ApiPublicHooksExpireTransfersRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/signin': typeof SigninRoute
   '/upload': typeof UploadRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/signin': typeof SigninRoute
   '/upload': typeof UploadRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
@@ -52,6 +60,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/signin': typeof SigninRoute
   '/upload': typeof UploadRoute
   '/api/public/hooks/expire-transfers': typeof ApiPublicHooksExpireTransfersRoute
 }
@@ -60,14 +69,21 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/download'
+    | '/signin'
     | '/upload'
     | '/api/public/hooks/expire-transfers'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/download' | '/upload' | '/api/public/hooks/expire-transfers'
+  to:
+    | '/'
+    | '/download'
+    | '/signin'
+    | '/upload'
+    | '/api/public/hooks/expire-transfers'
   id:
     | '__root__'
     | '/'
     | '/download'
+    | '/signin'
     | '/upload'
     | '/api/public/hooks/expire-transfers'
   fileRoutesById: FileRoutesById
@@ -75,6 +91,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DownloadRoute: typeof DownloadRoute
+  SigninRoute: typeof SigninRoute
   UploadRoute: typeof UploadRoute
   ApiPublicHooksExpireTransfersRoute: typeof ApiPublicHooksExpireTransfersRoute
 }
@@ -86,6 +103,13 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/download': {
@@ -115,6 +139,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DownloadRoute: DownloadRoute,
+  SigninRoute: SigninRoute,
   UploadRoute: UploadRoute,
   ApiPublicHooksExpireTransfersRoute: ApiPublicHooksExpireTransfersRoute,
 }
