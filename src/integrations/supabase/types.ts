@@ -14,11 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      download_history: {
+        Row: {
+          created_at: string
+          downloaded_at: string
+          file_count: number
+          file_name: string
+          file_size: number
+          id: string
+          transfer_code: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          downloaded_at?: string
+          file_count?: number
+          file_name: string
+          file_size?: number
+          id?: string
+          transfer_code: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          downloaded_at?: string
+          file_count?: number
+          file_name?: string
+          file_size?: number
+          id?: string
+          transfer_code?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transfers: {
         Row: {
           created_at: string
           download_count: number
           expires_at: string
+          file_count: number
           file_name: string
           file_size: number
           file_type: string | null
@@ -27,11 +85,13 @@ export type Database = {
           storage_path: string
           transfer_code: string
           uploader_ip: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string
           download_count?: number
           expires_at: string
+          file_count?: number
           file_name: string
           file_size: number
           file_type?: string | null
@@ -40,11 +100,13 @@ export type Database = {
           storage_path: string
           transfer_code: string
           uploader_ip?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string
           download_count?: number
           expires_at?: string
+          file_count?: number
           file_name?: string
           file_size?: number
           file_type?: string | null
@@ -53,6 +115,7 @@ export type Database = {
           storage_path?: string
           transfer_code?: string
           uploader_ip?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

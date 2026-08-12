@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -95,6 +96,7 @@ async function collectFromDataTransfer(dt: DataTransfer): Promise<PickedItem[]> 
 }
 
 function UploadPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<PickedItem[]>([]);
   const [expiry, setExpiry] = useState<number>(EXPIRY_OPTIONS[2].value);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -234,7 +236,10 @@ function UploadPage() {
         file_type: type,
         storage_path: storagePath,
         expires_at: expiresAt,
+        user_id: user?.id ?? null,
+        file_count: items.length || 1,
       });
+
       if (insertErr) throw new Error(insertErr.message);
 
       setResult({ code, fileName: name, fileSize: blob.size, expiresAt });

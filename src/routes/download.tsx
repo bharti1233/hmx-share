@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download as DownloadIcon, FileIcon, Clock, Search, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Nav } from "@/components/Nav";
+import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatBytes, formatRemaining } from "@/lib/format";
 
@@ -17,7 +18,9 @@ interface Transfer {
   created_at: string;
   expires_at: string;
   download_count: number;
+  file_count?: number;
 }
+
 
 export const Route = createFileRoute("/download")({
   head: () => ({
@@ -43,6 +46,7 @@ function normalizeCode(raw: string): string {
 
 function DownloadPage() {
   const { code: initialCode } = Route.useSearch();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [code, setCode] = useState(initialCode ?? "");
   const [loading, setLoading] = useState(false);
@@ -102,6 +106,22 @@ function DownloadPage() {
         .update({ download_count: transfer.download_count + 1 })
         .eq("id", transfer.id)
         .then(() => {});
+
+      if (user) {
+        supabase
+          .from("download_history")
+          .insert({
+            user_id: user.id,
+            
+            transfer_code: transfer.transfer_code,
+            file_name: transfer.file_name,
+            file_size: transfer.file_size,
+            file_count: transfer.file_count ?? 1,
+          })
+          .then(() => {});
+      }
+
+
 
       window.location.href = data.signedUrl;
     } catch (e) {
