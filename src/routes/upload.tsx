@@ -31,14 +31,10 @@ import {
   formatSpeed,
 } from "@/lib/format";
 import {
-  MANIFEST_TYPE,
   buildTree,
   commonRoot,
   countFolders,
-  fileStoragePath,
-  manifestStoragePath,
   normalizeRelPath,
-  type TransferManifest,
 } from "@/lib/folder-transfer";
 
 export const Route = createFileRoute("/upload")({
@@ -305,97 +301,73 @@ function UploadPage() {
         return;
       }
 
-      // ---- folder / multi-file: upload each file individually, structure preserved ----
-      const manifestFiles: TransferManifest["files"] = [];
-      let doneBytes = 0;
-      let fails = 0;
-
-      for (let i = 0; i < items.length; i++) {
-        if (cancelledRef.current) throw new Error("Upload cancelled");
-        const it = items[i];
+      // ---- folder / multi-file: create and upload the actual ZIP archive ----
+      setCurrentFile(bundleName);
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      items.forEach((it, i) => {
         const rel = paths[i];
-        setCurrentFile(rel);
-        setCurrentPct(0);
-        const type = it.file.type || "application/octet-stream";
-        const dest = fileStoragePath(code, rel);
+        if (rel) zip.file(rel, it.file);
+      });
 
-        let ok = false;
-        for (let attempt = 0; attempt < 2 && !ok; attempt++) {
-          try {
-            const { data: signed, error: signedErr } = await supabase.storage
-              .from("transfers")
-              .createSignedUploadUrl(dest, { upsert: true });
-            if (signedErr || !signed) throw new Error(signedErr?.message ?? "Could not sign upload");
-            await putBlob(
-              signed.signedUrl,
-              it.file,
-              type,
-              (loaded) => {
-                const total = doneBytes + loaded;
-                const elapsed = (Date.now() - startTime) / 1000;
-                const bps = total / Math.max(elapsed, 0.001);
-                setUploadedBytes(total);
-                setProgress((total / Math.max(totalSize, 1)) * 100);
-                setCurrentPct((loaded / Math.max(it.file.size, 1)) * 100);
-                setSpeed(bps);
-                setRemaining((totalSize - total) / Math.max(bps, 1));
-              },
-              (x) => (xhrRef.current = x),
-            );
-            ok = true;
-          } catch (err) {
-            if (cancelledRef.current) throw new Error("Upload cancelled");
-            if (attempt === 1) break;
-          }
-        }
+      const zipBlob = await zip.generateAsync(
+        {
+          type: "blob",
+          mimeType: "application/zip",
+          compression: "DEFLATE",
+          compressionOptions: { level: 6 },
+        },
+        (metadata) => {
+          if (cancelledRef.current) return;
+          const pct = Math.min(metadata.percent, 100);
+          setCurrentFile(metadata.currentFile || bundleName);
+          setCurrentPct(pct);
+          setProgress(pct * 0.2);
+          setUploadedBytes(Math.round((pct / 100) * totalSize * 0.2));
+        },
+      );
+      if (cancelledRef.current) throw new Error("Upload cancelled");
+      if (zipBlob.size === 0) throw new Error("Could not create ZIP archive");
 
-        if (ok) {
-          manifestFiles.push({ path: rel, size: it.file.size, type });
-          setCompleted((c) => c + 1);
-        } else {
-          fails += 1;
-          setFailed(fails);
-        }
-        doneBytes += it.file.size;
-        setUploadedBytes(doneBytes);
-        setProgress((doneBytes / Math.max(totalSize, 1)) * 100);
-        // yield to the event loop so the UI stays responsive on huge folders
-        await new Promise((r) => setTimeout(r, 0));
-      }
-
-      if (!manifestFiles.length) throw new Error("No files could be uploaded");
-
-      const manifest: TransferManifest = {
-        version: 1,
-        root: root || "",
-        files: manifestFiles,
-      };
-      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
-      const mPath = manifestStoragePath(code);
-      const { data: mSigned, error: mErr } = await supabase.storage
+      const storagePath = `${code}/${bundleName}`;
+      const { data: signed, error: signedErr } = await supabase.storage
         .from("transfers")
-        .createSignedUploadUrl(mPath, { upsert: true });
-      if (mErr || !mSigned) throw new Error(mErr?.message ?? "Could not finalise transfer");
-      await putBlob(mSigned.signedUrl, manifestBlob, "application/json", () => {}, (x) => (xhrRef.current = x));
+        .createSignedUploadUrl(storagePath, { upsert: true });
+      if (signedErr || !signed) throw new Error(signedErr?.message ?? "Could not sign upload");
+      await putBlob(
+        signed.signedUrl,
+        zipBlob,
+        "application/zip",
+        (loaded) => {
+          const pct = (loaded / Math.max(zipBlob.size, 1)) * 100;
+          const elapsed = (Date.now() - startTime) / 1000;
+          const bps = loaded / Math.max(elapsed, 0.001);
+          setProgress(20 + pct * 0.8);
+          setCurrentPct(pct);
+          setUploadedBytes(Math.min(totalSize, Math.round(totalSize * 0.2 + totalSize * 0.8 * (pct / 100))));
+          setSpeed(bps);
+          setRemaining((zipBlob.size - loaded) / Math.max(bps, 1));
+        },
+        (x) => (xhrRef.current = x),
+      );
+      setCompleted(items.length);
 
-      const uploadedSize = manifestFiles.reduce((s, f) => s + f.size, 0);
       const expiresAt = new Date(Date.now() + expiry).toISOString();
       const { error: insertErr } = await supabase.from("transfers").insert({
         transfer_code: code,
         file_name: bundleName,
-        file_size: uploadedSize,
-        file_type: MANIFEST_TYPE,
-        storage_path: mPath,
+        file_size: zipBlob.size,
+        file_type: "application/zip",
+        storage_path: storagePath,
         expires_at: expiresAt,
         user_id: user?.id ?? null,
-        file_count: manifestFiles.length,
+        file_count: items.length,
       });
       if (insertErr) throw new Error(insertErr.message);
 
-      setResult({ code, fileName: bundleName, fileSize: uploadedSize, expiresAt });
+      setResult({ code, fileName: bundleName, fileSize: zipBlob.size, expiresAt });
       setPhase("done");
-      if (fails > 0) toast.warning(`Upload complete — ${fails} file(s) failed`);
-      else toast.success("Upload complete!");
+      toast.success("Upload complete!");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Upload failed";
       if (msg !== "Upload cancelled") {
