@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Nav } from "@/components/Nav";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { MANIFEST_TYPE, fileStoragePath, type TransferManifest } from "@/lib/folder-transfer";
 import { formatBytes, formatRemaining } from "@/lib/format";
 
 interface Transfer {
@@ -42,6 +43,118 @@ function normalizeCode(raw: string): string {
   if (cleaned.startsWith("HMX-")) return cleaned;
   if (/^[A-Z0-9]{6}$/.test(cleaned)) return `HMX-${cleaned}`;
   return cleaned;
+}
+
+function sanitizeFileName(name: string, fallback = "hmx-download") {
+  const cleaned = name
+    .replace(/[\\/:*?"<>|\u0000-\u001F]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (cleaned || fallback).slice(0, 180);
+}
+
+function isManifestTransfer(transfer: Transfer) {
+  return transfer.file_type === MANIFEST_TYPE || transfer.storage_path.endsWith("/__hmx_manifest.json");
+}
+
+function isExpectedJsonFile(fileName: string, fileType: string | null | undefined) {
+  return fileType?.includes("json") || fileName.toLowerCase().endsWith(".json");
+}
+
+async function signedStorageUrl(path: string, fileName: string) {
+  const { data, error } = await supabase.storage
+    .from("transfers")
+    .createSignedUrl(path, 300, { download: sanitizeFileName(fileName) });
+  if (error || !data?.signedUrl) throw new Error(error?.message ?? "Could not prepare download");
+  return data.signedUrl;
+}
+
+async function fetchVerifiedBlob({
+  url,
+  fileName,
+  fileType,
+  expectedSize,
+}: {
+  url: string;
+  fileName: string;
+  fileType?: string | null;
+  expectedSize?: number;
+}) {
+  const response = await fetch(url);
+  const contentType = response.headers.get("content-type") ?? "";
+  const contentLength = Number(response.headers.get("content-length") ?? "0");
+
+  if (!response.ok) {
+    throw new Error("Download failed. The file could not be retrieved.");
+  }
+
+  if (contentType.includes("application/json") && !isExpectedJsonFile(fileName, fileType)) {
+    const text = await response.clone().text();
+    try {
+      const payload = JSON.parse(text) as { error?: unknown; message?: unknown; code?: unknown };
+      if (payload.error || payload.message || payload.code) {
+        throw new Error("Download failed. The file could not be retrieved.");
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("Download failed")) throw err;
+      throw new Error("Download failed. The file could not be retrieved.");
+    }
+  }
+
+  const blob = await response.blob();
+  const expectedHasContent = typeof expectedSize === "number" && expectedSize > 0;
+  if (expectedHasContent && (blob.size === 0 || contentLength === 0)) {
+    throw new Error("Download failed. The file was empty.");
+  }
+  return blob;
+}
+
+function triggerDownload(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = sanitizeFileName(fileName);
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function readManifest(transfer: Transfer) {
+  const manifestUrl = await signedStorageUrl(transfer.storage_path, "__hmx_manifest.json");
+  const manifestBlob = await fetchVerifiedBlob({
+    url: manifestUrl,
+    fileName: "__hmx_manifest.json",
+    fileType: "application/json",
+  });
+  const manifest = JSON.parse(await manifestBlob.text()) as Partial<TransferManifest>;
+  if (manifest.version !== 1 || !Array.isArray(manifest.files)) {
+    throw new Error("Download failed. The transfer metadata is invalid.");
+  }
+  return manifest as TransferManifest;
+}
+
+async function buildLegacyManifestZip(transfer: Transfer) {
+  const manifest = await readManifest(transfer);
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+
+  for (const entry of manifest.files) {
+    if (!entry.path) continue;
+    const fileUrl = await signedStorageUrl(fileStoragePath(transfer.transfer_code, entry.path), entry.path);
+    const fileBlob = await fetchVerifiedBlob({
+      url: fileUrl,
+      fileName: entry.path,
+      fileType: entry.type,
+      expectedSize: entry.size,
+    });
+    zip.file(entry.path, fileBlob);
+  }
+
+  const archive = await zip.generateAsync({ type: "blob", mimeType: "application/zip", compression: "STORE" });
+  if (archive.size === 0) throw new Error("Download failed. The ZIP archive was empty.");
+  return archive;
 }
 
 function DownloadPage() {
@@ -95,24 +208,28 @@ function DownloadPage() {
     if (!transfer) return;
     setDownloading(true);
     try {
-      const { data, error: sigErr } = await supabase.storage
-        .from("transfers")
-        .createSignedUrl(transfer.storage_path, 60, { download: transfer.file_name });
-      if (sigErr || !data?.signedUrl) throw new Error(sigErr?.message ?? "Could not sign download");
+      const safeFileName = sanitizeFileName(transfer.file_name, "hmx-download.zip");
+      const blob = isManifestTransfer(transfer)
+        ? await buildLegacyManifestZip(transfer)
+        : await fetchVerifiedBlob({
+            url: await signedStorageUrl(transfer.storage_path, safeFileName),
+            fileName: safeFileName,
+            fileType: transfer.file_type,
+            expectedSize: transfer.file_size,
+          });
 
       // Best-effort download count increment
-      supabase
+      void supabase
         .from("transfers")
         .update({ download_count: transfer.download_count + 1 })
         .eq("id", transfer.id)
         .then(() => {});
 
       if (user) {
-        supabase
+        void supabase
           .from("download_history")
           .insert({
             user_id: user.id,
-            
             transfer_code: transfer.transfer_code,
             file_name: transfer.file_name,
             file_size: transfer.file_size,
@@ -121,9 +238,7 @@ function DownloadPage() {
           .then(() => {});
       }
 
-
-
-      window.location.href = data.signedUrl;
+      triggerDownload(blob, safeFileName);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Download failed");
     } finally {
