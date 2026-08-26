@@ -103,8 +103,11 @@ async function fetchVerifiedBlob({
 
   const blob = await response.blob();
   const expectedHasContent = typeof expectedSize === "number" && expectedSize > 0;
-  if (expectedHasContent && (blob.size === 0 || contentLength === 0)) {
+  if (expectedHasContent && blob.size === 0) {
     throw new Error("Download failed. The file was empty.");
+  }
+  if (expectedHasContent && blob.size !== expectedSize) {
+    throw new Error("Download failed. The retrieved file was incomplete.");
   }
   return blob;
 }
