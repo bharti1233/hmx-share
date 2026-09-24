@@ -180,17 +180,38 @@ function UploadPage() {
   );
   const bundleName = `${root || "hmx-bundle"}.zip`;
 
+  const itemsRef = useRef<PickedItem[]>([]);
+  itemsRef.current = items;
+
   const setPicked = (list: PickedItem[]) => {
     if (!list.length) {
       toast.error("That folder is empty — nothing to upload");
       return;
     }
-    const total = list.reduce((s, it) => s + it.file.size, 0);
+    // Merge with existing selection; skip top-level entries (folder or file) that already exist.
+    const topOf = (p: string) => normalizeRelPath(p).split("/")[0];
+    const existing = new Set(itemsRef.current.map((it) => topOf(it.relPath)));
+    const skipped = new Set<string>();
+    const added = list.filter((it) => {
+      const top = topOf(it.relPath);
+      if (existing.has(top)) {
+        skipped.add(top);
+        return false;
+      }
+      return true;
+    });
+    if (skipped.size) {
+      toast.warning(`Skipped duplicate: ${Array.from(skipped).join(", ")}`);
+    }
+    if (!added.length) return;
+    const merged = [...itemsRef.current, ...added];
+    const total = merged.reduce((s, it) => s + it.file.size, 0);
     if (total > MAX_SIZE) {
       toast.error(`Selection exceeds ${formatBytes(MAX_SIZE)} limit`);
       return;
     }
-    setItems(list);
+    itemsRef.current = merged;
+    setItems(merged);
     setPhase("picked");
     setError(null);
     setProgress(0);
@@ -504,10 +525,10 @@ function UploadPage() {
                             e.stopPropagation();
                             reset();
                           }}
-                          className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                          aria-label="Clear selection"
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="Clear all"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-4 w-4" /> Clear all
                         </button>
                       )}
                     </div>
