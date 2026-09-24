@@ -439,7 +439,7 @@ function UploadPage() {
                   type="file"
                   multiple
                   className="hidden"
-                  onChange={(e) => onFilesPicked(e.target.files)}
+                  onChange={(e) => { onFilesPicked(e.target.files); e.target.value = ""; }}
                 />
                 <input
                   ref={folderInputRef}
@@ -450,7 +450,7 @@ function UploadPage() {
                   directory=""
                   mozdirectory=""
                   multiple
-                  onChange={(e) => onFilesPicked(e.target.files)}
+                  onChange={(e) => { onFilesPicked(e.target.files); e.target.value = ""; }}
                 />
                 {!items.length ? (
                   <>
