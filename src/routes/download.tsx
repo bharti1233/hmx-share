@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Download as DownloadIcon, FileIcon, Clock, Search, AlertCircle } from "lucide-react";
+import { Download as DownloadIcon, FileIcon, Clock, Search, AlertCircle, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Nav } from "@/components/Nav";
 import { useAuth } from "@/hooks/use-auth";
@@ -55,6 +55,20 @@ function sanitizeFileName(name: string, fallback = "hmx-download") {
 
 function isManifestTransfer(transfer: Transfer) {
   return transfer.file_type === MANIFEST_TYPE || transfer.storage_path.endsWith("/__hmx_manifest.json");
+}
+
+type PreviewKind = "image" | "video" | "pdf";
+
+function getPreviewKind(transfer: Transfer): PreviewKind | null {
+  if (isManifestTransfer(transfer) || (transfer.file_count ?? 1) > 1) return null;
+  const type = (transfer.file_type ?? "").toLowerCase();
+  const ext = transfer.file_name.toLowerCase().split(".").pop() ?? "";
+  if (type.includes("zip") || ext === "zip") return null;
+  if (type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif", "avif", "bmp", "svg"].includes(ext))
+    return "image";
+  if (type.startsWith("video/") || ["mp4", "webm", "ogg", "mov", "m4v"].includes(ext)) return "video";
+  if (type === "application/pdf" || ext === "pdf") return "pdf";
+  return null;
 }
 
 function isExpectedJsonFile(fileName: string, fileType: string | null | undefined) {
@@ -170,6 +184,12 @@ function DownloadPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    setPreviewUrl(null);
+  }, [transfer?.id]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -249,6 +269,23 @@ function DownloadPage() {
     }
   };
 
+  const openPreview = async () => {
+    if (!transfer) return;
+    setPreviewLoading(true);
+    try {
+      const { data, error: err } = await supabase.storage
+        .from("transfers")
+        .createSignedUrl(transfer.storage_path, 600);
+      if (err || !data?.signedUrl) throw new Error(err?.message ?? "Could not load preview");
+      setPreviewUrl(data.signedUrl);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not load preview");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const previewKind = transfer ? getPreviewKind(transfer) : null;
   const msLeft = transfer ? new Date(transfer.expires_at).getTime() - now : 0;
   const expired = transfer && msLeft <= 0;
 
@@ -333,6 +370,33 @@ function DownloadPage() {
                 accent
               />
             </div>
+
+            {previewKind && (
+              <div className="mt-6">
+                {!previewUrl ? (
+                  <button
+                    onClick={openPreview}
+                    disabled={previewLoading}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-muted/40 py-3 text-sm font-semibold transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <Eye className="h-4 w-4" />
+                    {previewLoading ? "Loading preview…" : "Preview"}
+                  </button>
+                ) : (
+                  <div className="overflow-hidden rounded-2xl border border-border bg-background/40">
+                    {previewKind === "image" && (
+                      <img src={previewUrl} alt={transfer.file_name} className="max-h-[70vh] w-full object-contain" />
+                    )}
+                    {previewKind === "video" && (
+                      <video src={previewUrl} controls playsInline className="max-h-[70vh] w-full" />
+                    )}
+                    {previewKind === "pdf" && (
+                      <iframe src={previewUrl} title={transfer.file_name} className="h-[70vh] w-full" />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={startDownload}
