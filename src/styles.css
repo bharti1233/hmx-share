@@ -57,6 +57,31 @@
   --glass-border: oklch(1 0 0 / 10%);
 }
 
+:root.light {
+  --background: oklch(0.98 0.005 265);
+  --foreground: oklch(0.18 0.03 265);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.03 265);
+  --muted: oklch(0.94 0.01 265);
+  --muted-foreground: oklch(0.45 0.03 265);
+  --primary: oklch(0.55 0.21 285);
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.6 0.15 200);
+  --accent-foreground: oklch(0.99 0 0);
+  --border: oklch(0 0 0 / 10%);
+  --ring: oklch(0.55 0.21 285);
+  --destructive: oklch(0.58 0.22 25);
+  --success: oklch(0.58 0.17 155);
+  --gradient-primary: linear-gradient(135deg, oklch(0.6 0.2 285) 0%, oklch(0.65 0.15 200) 100%);
+  --gradient-hero: radial-gradient(ellipse at top, oklch(0.85 0.08 285 / 0.5), transparent 60%),
+                   radial-gradient(ellipse at bottom right, oklch(0.88 0.07 200 / 0.4), transparent 60%);
+  --shadow-glow: 0 0 50px -12px oklch(0.55 0.21 285 / 0.35);
+  --shadow-card: 0 20px 50px -24px oklch(0.3 0.05 265 / 0.25);
+  --glass-bg: oklch(1 0 0 / 65%);
+  --glass-border: oklch(0 0 0 / 8%);
+  color-scheme: light;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { LogOut, User as UserIcon, LayoutDashboard, Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useQueryClient } from "@tanstack/react-query";
 
 const linkCls =
@@ -46,6 +47,7 @@ export function Nav() {
             Download
           </Link>
 
+          <ThemeToggle />
           {!loading && !user && (
             <Link
               to="/signin"
